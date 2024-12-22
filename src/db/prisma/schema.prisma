@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Deployment {
+  id            String   @id
+  dropletId     Int?
+  serverId      String?
+  status        String
+  error         String?
+  dropletConfig Json
+  deployConfig  Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
