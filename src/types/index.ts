@@ -7,13 +7,13 @@ export interface DropletConfig {
 }
 
 export interface ElizaDeployConfig {
-  projectUuid: string;
-  serverUuid: string;
-  environmentName: string;
-  gitRepository: string;
-  gitBranch: string;
-  buildPack: 'nixpacks' | 'dockerfile';
-  portsExposed: string;
+  project_uuid: string;
+  server_uuid: string;
+  environment_name: string;
+  git_repository: string;
+  git_branch: string;
+  build_pack: 'nixpacks' | 'dockerfile';
+  ports_exposes: string;
 }
 
 export interface DeploymentJob {
@@ -26,4 +26,13 @@ export interface DeploymentJob {
   //dropletIp: string;
   error?: string;
   createdAt: Date;
+}
+
+export interface EnvironmentVariable {
+  key: string;
+  value: string;
+}
+
+export interface BulkEnvironmentVariables {
+  environmentVariables: EnvironmentVariable[];
 }

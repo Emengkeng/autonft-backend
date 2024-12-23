@@ -134,7 +134,7 @@ export class QueueService {
         await this.deploymentService.updateDeployment(job.data.id, deployingStatus);
 
         const deployment = await this.coolifyService.deployEliza({
-          serverUuid: server.uuid,
+          server_uuid: server.uuid,
           ...job.data.deployConfig
         });
 

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { QueueService } from '../services/queue';
 import { DeploymentService } from '../services/deployment';
+import { config } from '../config';
+
 
 export class DeploymentController {
   private queueService: QueueService;
@@ -14,8 +16,8 @@ export class DeploymentController {
   async deployEliza (req: Request, res: Response) {
     try {
       const jobId = await this.queueService.addJob(
-        req.body.dropletConfig,
-        req.body.deployConfig
+        config.digitalOcean.defaultConfig,
+        config.coolify.defaultConfig
       );
 
       res.json({

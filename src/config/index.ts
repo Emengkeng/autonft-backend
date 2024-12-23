@@ -14,9 +14,10 @@ export const config = {
     apiKey: process.env.COOLIFY_API_KEY || '',
     apiUrl: process.env.COOLIFY_API_URL || 'https://api.coolify.io',
     defaultConfig: {
-      buildPack: 'nixpacks' as const,
-      environmentName: 'production',
-      portsExposed: '3000'
+      project_uuid: process.env.COOLIFY_PROJECT_UUID,
+      build_pack: 'dockerfile' as const,
+      environment_name: 'production',
+      ports_exposes: '3000'
     }
   }
 };
