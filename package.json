@@ -30,7 +30,8 @@
     "dots-wrapper": "^3.11.13",
     "express": "^4.21.2",
     "helmet": "^7.1.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/bull": "^4.10.4",
