@@ -30,6 +30,7 @@ export class DigitalOceanService {
     let sshKeyId = await this.ensureCoolifySSHKey();
 
     const finalConfig = {
+      name:dropletConfig.name,
       ...config.digitalOcean.defaultConfig,
       ssh_keys: [sshKeyId.id, sshKeyId.fingerprint], // Only use Coolify's key
       ipv6: true,

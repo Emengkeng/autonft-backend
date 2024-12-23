@@ -11,6 +11,11 @@ export class DeploymentController {
   constructor() {
     this.queueService = new QueueService();
     this.deploymentService = new DeploymentService();
+
+    // Bind methods to ensure correct 'this' context
+    this.deployEliza = this.deployEliza.bind(this);
+    this.getDeploymentStatus = this.getDeploymentStatus.bind(this);
+    this.getActiveDroplets = this.getActiveDroplets.bind(this);
   }
 
   async deployEliza (req: Request, res: Response) {
