@@ -2,9 +2,11 @@ import express, { Router } from 'express';
 import { DeploymentController } from '../controllers/deployment';
 import { EnvironmentService } from '@/services/environment.variables';
 import { EnvironmentController } from '@/controllers/environment';
+import { TokenController } from '@/controllers/token';
 
 const router: Router = express.Router();
 const deploymentController = new DeploymentController();
+const tokenController = new TokenController();
 
 // Initialize service with just the base URL and auth token
 const envService = new EnvironmentService(
@@ -32,5 +34,10 @@ router.get('/droplets/count', deploymentController.getActiveDroplets);
 router.post('/env', envController.updateVariable);
 router.put('/env/bulk', envController.bulkUpdate);
 router.delete('/env/:applicationUuid/:key', envController.deleteVariable);
+
+router.get('/balance/:userId', tokenController.getBalance);
+router.post('/deduct', tokenController.deductTokens);
+router.post('/credit', tokenController.creditTokens);
+router.get('/history/:userId', tokenController.getTransactionHistory);
 
 export default router;
