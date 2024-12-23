@@ -1,6 +1,8 @@
 node_modules
 /out
 
+dump.rdb
+
 .env
 .env.production
 .env.local
