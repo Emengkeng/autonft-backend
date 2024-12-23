@@ -5,30 +5,106 @@ A robust deployment automation system that orchestrates the creation of DigitalO
 
 ## Architecture
 
-<antArtifact identifier="architecture-diagram" type="application/vnd.ant.mermaid" title="System Architecture Diagram">
-flowchart TB
-    Client([Client]) --> API[API Layer]
-    API --> QueueService[Queue Service]
-    API --> EnvController[Environment Controller]
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as API Layer
+    participant Q as Queue Service
+    participant R as Redis
+    participant DO as DigitalOcean Service
+    participant CO as Coolify Service
+    participant DS as Deployment Service
+
+    Note over C,DS: Initialization Phase
+    C->>API: POST /deploy
+    API->>DS: Check droplet limit
+    DS-->>API: Confirm capacity
     
-    subgraph Queue Processing
-        QueueService --> Redis[(Redis)]
-        Redis --> QueueProcessor[Queue Processor]
-        QueueProcessor --> DOService[DigitalOcean Service]
-        QueueProcessor --> CoolifyService[Coolify Service]
-        QueueProcessor --> DeploymentService[Deployment Service]
+    Note over API,R: Job Creation
+    API->>Q: Create deployment job
+    Q->>DS: Create deployment record
+    Q->>R: Add job to queue
+    
+    Note over R,DS: Processing Phase
+    R->>Q: Process job
+    Q->>DS: Update status to 'processing'
+    
+    Note over Q,DO: Droplet Creation
+    Q->>DO: Create droplet
+    DO-->>Q: Return droplet ID
+    Q->>DS: Store droplet ID
+    
+    loop Every 5s (max 60s)
+        Q->>DO: Check droplet status
+        DO-->>Q: Return status
+        Q->>DS: Update initialization progress
     end
     
-    subgraph External Services
-        DOService --> DigitalOcean[(DigitalOcean API)]
-        CoolifyService --> Coolify[(Coolify API)]
-        DeploymentService --> Database[(Database)]
+    Note over Q,CO: Coolify Integration
+    Q->>CO: Connect server
+    CO-->>Q: Return server UUID
+    Q->>DS: Store server ID
+    
+    Q->>CO: Deploy application
+    
+    loop Every 5s (max 60s)
+        Q->>CO: Check deployment status
+        CO-->>Q: Return status
+        Q->>DS: Update build progress
     end
     
-    subgraph Environment Management
-        EnvController --> EnvService[Environment Service]
-        EnvService --> Coolify
+    alt Successful Deployment
+        Q->>DS: Update status to 'completed'
+    else Failed Deployment
+        Q->>DO: Cleanup droplet
+        Q->>CO: Remove server
+        Q->>DS: Update status to 'failed'
     end
+
+```
+
+Let me walk you through the deployment flow step by step:
+
+1. **Initialization Phase**:
+   - When a client makes a POST request to `/deploy`, the system first checks if we're within the droplet limit (max 3)
+   - The `DeploymentService` validates this before proceeding
+
+2. **Job Creation**:
+   - A new deployment job is created with a unique ID (`deploy-${Date.now()}`)
+   - The job is stored in the database via `DeploymentService`
+   - It's then added to the Redis queue for processing
+
+3. **Processing Phase**:
+   - The queue processor picks up the job
+   - Status is updated to 'processing'
+   - All status updates are stored in both the job and database
+
+4. **Droplet Creation**:
+   - DigitalOcean droplet is created with name `eliza-${jobId}`
+   - The system polls every 5 seconds for up to 60 seconds (12 attempts)
+   - Waiting for the droplet to get a public IP address
+   - Each attempt updates the deployment status
+
+5. **Coolify Integration**:
+   - Once the droplet is ready, Coolify server connection is established
+   - Server UUID is stored in the job and database
+   - Application deployment begins
+   - Build progress is monitored every 5 seconds
+
+6. **Completion/Failure Handling**:
+   - On success: status is updated to 'completed'
+   - On failure: 
+     - Droplet is deleted
+     - Coolify server is removed
+     - Status is updated to 'failed'
+     - Error message is stored
+
+Key implementation notes:
+- All operations are idempotent and tracked
+- Comprehensive error handling at each step
+- Automatic resource cleanup on failure
+- Real-time status updates throughout the process
+- Maximum timeout of 60 seconds for both droplet and deployment initialization
 
 
 ## Features
