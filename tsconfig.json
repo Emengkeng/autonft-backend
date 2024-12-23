@@ -3,9 +3,6 @@
     "target": "es2017",
     "module": "commonjs",
     "lib": ["es2017", "esnext.asynciterable", "dom"],
-    "typeRoots": [
-      "node_modules/@types"
-    ],
     "moduleResolution": "node",
     "esModuleInterop": true,
     "resolveJsonModule": true,
