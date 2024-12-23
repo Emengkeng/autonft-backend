@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ElizaDeployConfig, EnvironmentVariable } from '../types';
 import { config } from '../config';
-import { EnvironmentService } from './environment.variables';
+import { EnvironmentService } from './environmentVariables';
 
 export class CoolifyService {
   private client;

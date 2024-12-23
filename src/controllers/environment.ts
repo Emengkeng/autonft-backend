@@ -1,4 +1,4 @@
-import { EnvironmentService } from '@/services/environment.variables';
+import { EnvironmentService } from '@/services/environmentVariables';
 import { EnvironmentVariable } from '@/types';
 import { Request, Response } from 'express';
 
