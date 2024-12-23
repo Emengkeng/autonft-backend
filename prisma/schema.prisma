@@ -18,3 +18,28 @@ model Deployment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+model TokenAccount{
+  id        String   @id @default(cuid()) 
+  userId    String   @unique              
+  balance   Float    @default(0.0)        
+  tier      String?                        
+  createdAt DateTime @default(now())       
+  updatedAt DateTime @updatedAt 
+  transactions TokenTransaction[]
+}
+
+model TokenTransaction {
+  id        String   @id @default(cuid()) 
+  userId    String                           
+  amount    Float                            
+  type      TransactionType                  
+  createdAt DateTime @default(now())         
+  tokenAccount TokenAccount @relation(fields: [userId], references: [userId])
+
+  @@index([userId]) 
+}
+
+enum TransactionType {
+  CREDIT
+  DEDUCT
+}
