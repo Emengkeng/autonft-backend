@@ -1,6 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import {morgan} from 'morgan';
+import morgan from 'morgan';
 import router from './routes';
 
 const app: Express = express();
