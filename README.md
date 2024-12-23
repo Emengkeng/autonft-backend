@@ -1,8 +1,3 @@
-I'll create a comprehensive README file for this project, including a system architecture diagram using Mermaid.
-
-
-
-
 
 # Automated Deployment System
 
