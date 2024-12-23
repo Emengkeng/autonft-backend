@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import { DeploymentController } from '../controllers/deployment';
-import { EnvironmentService } from '@/services/environment.variables';
+import { EnvironmentService } from '@/services/environmentVariables';
 import { EnvironmentController } from '@/controllers/environment';
 import { TokenController } from '@/controllers/token';
 
@@ -17,7 +17,7 @@ const envService = new EnvironmentService(
 const envController = new EnvironmentController(envService);
 
 // Health check endpoint
-router.get('/health', (req, res) => {
+router.get('/', (req, res) => {
     res.status(200).json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
