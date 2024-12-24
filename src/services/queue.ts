@@ -3,12 +3,14 @@ import { DeploymentJob, DropletConfig, ElizaDeployConfig } from '../types';
 import { DigitalOceanService } from './digitalOcean';
 import { CoolifyService } from './coolify';
 import { DeploymentService } from './deployment';
+import { LoggerService } from './logger';
 
 export class QueueService {
   private deploymentQueue: Bull.Queue<DeploymentJob>;
   private doService: DigitalOceanService;
   private coolifyService: CoolifyService;
   private deploymentService: DeploymentService;
+  private logger: LoggerService;
 
   constructor() {
     this.deploymentQueue = new Bull('deployment-queue', {
@@ -17,20 +19,24 @@ export class QueueService {
     this.doService = new DigitalOceanService();
     this.coolifyService = new CoolifyService();
     this.deploymentService = new DeploymentService();
+    this.logger = new LoggerService();
 
     this.setupQueueProcessor();
   }
 
   private async cleanup(job: Bull.Job<DeploymentJob>) {
     try {
+      this.logger.logQueueOperation(job.id.toString(), 'Starting cleanup');
       // Cleanup DigitalOcean droplet if it was created
       if (job.data.dropletId) {
         await this.doService.deleteDroplet(job.data.dropletId);
+        this.logger.logDropletOperation(job.id.toString(), 'deletion', job.data.dropletId);
       }
 
       // Cleanup Coolify server if it was connected
       if (job.data.serverId) {
         await this.coolifyService.removeServer(job.data.serverId);
+        this.logger.logCoolifyOperation(job.id.toString(), 'server removal', job.data.serverId);
       }
 
       // Update deployment record
@@ -39,7 +45,7 @@ export class QueueService {
         error: 'Cleaned up due to failure'
       });
 
-      console.log(`Cleaned up resources for failed job ${job.id}`);
+      this.logger.logCleanup(job.id.toString(), 'Cleanup completed successfully');
     } catch (error) {
       console.error(`Error during cleanup for job ${job.id}:`, error);
     }
@@ -48,6 +54,7 @@ export class QueueService {
   private setupQueueProcessor() {
     this.deploymentQueue.process(async (job) => {
       try {
+        this.logger.logQueueOperation(job.id.toString(), 'Update job status to processing');
         // Update job status to processing
         const updatedJob : DeploymentJob = {
           ...job.data,
@@ -56,18 +63,21 @@ export class QueueService {
         await job.update(updatedJob);
         await this.deploymentService.updateDeployment(job.data.id, updatedJob);
 
+        this.logger.logQueueOperation(job.id.toString(), 'Check if we can create a new droplet');
         // Check if we can create a new droplet
         const canCreate = await this.deploymentService.canCreateNewDroplet();
         if (!canCreate) {
           throw new Error('Maximum number of droplets reached');
         }
 
+        this.logger.logQueueOperation(job.id.toString(), 'Creating DigitalOcean droplet');
         // 1. Create DigitalOcean droplet
         const droplet = await this.doService.createDroplet({
           name: `eliza-${job.id}`,
           ...job.data.dropletConfig
         });
 
+        this.logger.logQueueOperation(job.id.toString(), 'Store droplet ID');
         // Store droplet ID
         const jobWithDroplet = {
           ...updatedJob,
@@ -77,6 +87,7 @@ export class QueueService {
         await job.update(jobWithDroplet);
         await this.deploymentService.updateDeployment(job.data.id, jobWithDroplet);
 
+        this.logger.logQueueOperation(job.id.toString(), 'Waiting for droplet to be ready to get IP');
         // 2. Wait for droplet to be ready and get IP
         let dropletDetails;
         let attempts = 0;
@@ -87,6 +98,7 @@ export class QueueService {
           dropletDetails = await this.doService.getDroplet(droplet.id);
           attempts++;
 
+          this.logger.logQueueOperation(job.id.toString(), 'Updating status with initialization progress');
           // Update status with initialization progress
           const initializingStatus : DeploymentJob = {
             ...jobWithDroplet,
@@ -101,9 +113,15 @@ export class QueueService {
           }
         } while (!dropletDetails.networks.v4.length);
 
+        //console.log("Droplet ip v4 list:", dropletDetails.networks.v4)
+
         const publicIPv4 = dropletDetails.networks.v4.find(network => network.type === "public");
         const dropletIp = publicIPv4.ip_address;
 
+       // console.log("Droplet ip sorted:", dropletIp)
+
+
+        this.logger.logQueueOperation(job.id.toString(), 'Updating status to show droplet is ready');
         // Update status to show droplet is ready
         const dropletReadyStatus : DeploymentJob = {
           ...jobWithDroplet,
@@ -113,8 +131,9 @@ export class QueueService {
         await job.update(dropletReadyStatus);
         await this.deploymentService.updateDeployment(job.data.id, dropletReadyStatus);
 
+        this.logger.logQueueOperation(job.id.toString(), 'Connecting server to Coolify');
         // 3. Connect server to Coolify
-        const server = await this.coolifyService.connectServer(dropletIp);
+        const server = await this.coolifyService.connectServer(dropletIp, job.id.toString(), jobWithDroplet.dropletId);
 
         // Store server ID
         const jobWithServer = {
@@ -125,6 +144,9 @@ export class QueueService {
         await job.update(jobWithServer);
         await this.deploymentService.updateDeployment(job.data.id, jobWithServer);
 
+        // Wait 1.5 minutes for server validation
+        await wait(90000);
+        this.logger.logQueueOperation(job.id.toString(), 'Deploying Eliza');
         // 4. Deploy Eliza
         const deployingStatus = {
           ...jobWithServer,
@@ -135,16 +157,19 @@ export class QueueService {
 
         const deployment = await this.coolifyService.deployEliza({
           server_uuid: server.uuid,
-          ...job.data.deployConfig
+          //...job.data.deployConfig
         });
 
+        this.logger.logQueueOperation(job.id.toString(), 'Waiting for deployment to be ready');
         // Wait for deployment to be ready
-        let deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment.id);
+        await wait(300000);
+        this.logger.logQueueOperation(job.id.toString(), 'Starting to check if deployment is ready');
+        let deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment);
         attempts = 0;
 
         while (deploymentStatus.status === 'building' && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 5000));
-          deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment.id);
+          deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment);
           attempts++;
 
           const buildingStatus = {
@@ -159,6 +184,7 @@ export class QueueService {
           throw new Error(`Deployment failed with status: ${deploymentStatus.status}`);
         }
 
+        this.logger.logQueueOperation(job.id.toString(), 'Marking deployment as completed in database');
         // Mark as completed in database
         const completedJob : DeploymentJob = {
           ...jobWithServer,
@@ -222,4 +248,8 @@ export class QueueService {
   async getJobStatus(jobId: string): Promise<DeploymentJob | null> {
     return this.deploymentService.getDeployment(jobId);
   }
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

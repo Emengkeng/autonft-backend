@@ -27,6 +27,9 @@ router.get('/', (req, res) => {
     });
 });
 
+router.get('/rda', deploymentController.getRecentlyCreatedApplication);
+router.get('/coolifydpstatus', deploymentController.getCoolifyDeploymentStatus)
+
 router.post('/deploy', deploymentController.deployEliza);
 router.get('/deploy/:jobId/status', deploymentController.getDeploymentStatus);
 router.get('/droplets/count', deploymentController.getActiveDroplets);

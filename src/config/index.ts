@@ -5,8 +5,8 @@ export const config = {
   digitalOcean: {
     apiKey: process.env.DO_API_KEY || '',
     defaultConfig: {
-      region: 'nyc1',
-      size: 's-2vcpu-2gb',
+      region: 'nyc3',
+      size: 's-2vcpu-4gb-120gb-intel',
       image: 'ubuntu-20-04-x64'
     }
   },

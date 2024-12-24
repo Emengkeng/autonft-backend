@@ -2,10 +2,13 @@ import axios from 'axios';
 import { ElizaDeployConfig, EnvironmentVariable } from '../types';
 import { config } from '../config';
 import { EnvironmentService } from './environmentVariables';
+import { LoggerService } from './logger';
+import { log } from 'console';
 
 export class CoolifyService {
   private client;
   private environmentService: EnvironmentService
+  private logger: LoggerService;
 
   constructor() {
     this.client = axios.create({
@@ -20,53 +23,66 @@ export class CoolifyService {
         process.env.COOLIFY_API_URL || 'https://api.coolify.io',
         process.env.COOLIFY_API_KEY || ''
     );
+
+    this.logger = new LoggerService();
   }
 
-  async connectServer(dropletIp: string) {
+  async connectServer(dropletIp: string, jobId: string, dropletId: string) {
     try {
+
+      this.logger.logCoolifyOperation(jobId, "Connecting Droplet server to colify")
       const serverData = {
         name: `eliza-server-${Date.now()}`,
         ip: dropletIp,
         port: 22,
         user: 'root',
         private_key_uuid: process.env.COOLIFY_PRIVATE_KEY_UUID,
-        proxy_type: 'traefik'
+        is_build_server: false,
+        proxy_type: 'none',
+        instant_validate: true
         // Add other required server connection params based on Coolify API
       };
 
-      const { data } = await this.client.post('/servers', serverData);
-      return data.server;
+      const response = await this.client.post('/servers', serverData);
+      //console.log("Connect server response:", response)
+      return response.data;
     } catch (error) {
-      console.error('Error connecting server to Coolify:', error);
+      this.logger.logCoolifyOperation(jobId, "Failed to connect server to coolify", dropletId, error)
       throw error;
     }
   }
 
   async deployEliza(deployConfig: Partial<ElizaDeployConfig>) {
+
+    this.logger.logCoolifyOperation(deployConfig.server_uuid, "Deploying Ai agent to coolify")
+
     const finalConfig = {
-     // ...config.coolify.defaultConfig,
+      ...config.coolify.defaultConfig,
       ...deployConfig,
       git_repository: 'https://github.com/Emengkeng/autonft.git',
       git_branch: 'main',
       dockerfile: "FROM node:23-alpine\n\nWORKDIR /app\n\nCOPY . .\n\nRUN npm install -g pnpm\nRUN pnpm install\nRUN pnpm build\n\nEXPOSE 3000\n\nCMD [\"pnpm\", \"start\"]",
       health_check_enabled: true,
       health_check_path: "/",
-      health_check_port: "5000",
+      health_check_port: "3000",
       health_check_interval: 30,
       health_check_timeout: 5,
       health_check_retries: 3,
-      limits_memory: "2G",
-      limits_cpus: "1",
+     // limits_memory: "2G",
+     // limits_cpus: "1",
     };
 
-    try {
-      const { data } = await this.client.post('/applications/public', finalConfig);
+    //console.log("AI agent Data:", finalConfig)
 
-      if (data.application?.uuid) {
-        await this.setupDefaultEnvironment(data.application.uuid);
+    try {
+      const response = await this.client.post('/applications/public', finalConfig);
+      const getApplication = await this.getRecentlyCreatedApplication();
+
+      if (getApplication?.uuid) {
+        await this.setupDefaultEnvironment(getApplication);
       }
 
-      return data.application;
+      return getApplication;
     } catch (error) {
       console.error('Error deploying Eliza:', error);
       throw error;
@@ -89,6 +105,18 @@ export class CoolifyService {
     } catch (error) {
       console.error('Error checking deployment status:', error);
       throw error;
+    }
+  }
+
+  async getRecentlyCreatedApplication(){
+    try {
+      const response = await this.client.get(`/applications`)
+      this.logger.logCoolifyOperation(null, "Recently created application", response.data)
+     // console.log("Recently created application:", response.data)
+      const recentApplicationuuId = response.data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].uuid;
+      return recentApplicationuuId;
+    } catch (error) {
+      
     }
   }
 
