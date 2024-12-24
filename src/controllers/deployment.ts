@@ -2,20 +2,26 @@ import { Request, Response } from 'express';
 import { QueueService } from '../services/queue';
 import { DeploymentService } from '../services/deployment';
 import { config } from '../config';
+import { CoolifyService } from '@/services/coolify';
 
 
 export class DeploymentController {
   private queueService: QueueService;
   private deploymentService: DeploymentService;
+  private coolifyService: CoolifyService
 
   constructor() {
     this.queueService = new QueueService();
     this.deploymentService = new DeploymentService();
+    this.coolifyService = new CoolifyService();
 
     // Bind methods to ensure correct 'this' context
     this.deployEliza = this.deployEliza.bind(this);
     this.getDeploymentStatus = this.getDeploymentStatus.bind(this);
     this.getActiveDroplets = this.getActiveDroplets.bind(this);
+    this.getRecentlyCreatedApplication = this.getRecentlyCreatedApplication.bind(this);
+    this.getCoolifyDeploymentStatus = this.getCoolifyDeploymentStatus.bind(this);
+    
   }
 
   async deployEliza (req: Request, res: Response) {
@@ -84,4 +90,35 @@ export class DeploymentController {
       });
     }
   };
+
+  async getRecentlyCreatedApplication(req: Request, res: Response){
+    try {
+      const response = await this.coolifyService.getRecentlyCreatedApplication();
+      res.json({
+        success: true,
+        response
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get Recently Created Application'
+      });
+    }
+    
+  }
+
+  async getCoolifyDeploymentStatus(req: Request, res: Response){
+    try {
+      const response = await this.coolifyService.checkDeploymentStatus(req.params.id)
+      res.json({
+        success: true,
+        response
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get Coolify Deployment Status'
+      });
+    }
+  }
 }

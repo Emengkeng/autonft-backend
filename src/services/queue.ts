@@ -113,8 +113,13 @@ export class QueueService {
           }
         } while (!dropletDetails.networks.v4.length);
 
+        //console.log("Droplet ip v4 list:", dropletDetails.networks.v4)
+
         const publicIPv4 = dropletDetails.networks.v4.find(network => network.type === "public");
         const dropletIp = publicIPv4.ip_address;
+
+       // console.log("Droplet ip sorted:", dropletIp)
+
 
         this.logger.logQueueOperation(job.id.toString(), 'Updating status to show droplet is ready');
         // Update status to show droplet is ready
@@ -128,7 +133,7 @@ export class QueueService {
 
         this.logger.logQueueOperation(job.id.toString(), 'Connecting server to Coolify');
         // 3. Connect server to Coolify
-        const server = await this.coolifyService.connectServer(dropletIp);
+        const server = await this.coolifyService.connectServer(dropletIp, job.id.toString(), jobWithDroplet.dropletId);
 
         // Store server ID
         const jobWithServer = {
@@ -139,6 +144,8 @@ export class QueueService {
         await job.update(jobWithServer);
         await this.deploymentService.updateDeployment(job.data.id, jobWithServer);
 
+        // Wait 1.5 minutes for server validation
+        await wait(90000);
         this.logger.logQueueOperation(job.id.toString(), 'Deploying Eliza');
         // 4. Deploy Eliza
         const deployingStatus = {
@@ -150,17 +157,19 @@ export class QueueService {
 
         const deployment = await this.coolifyService.deployEliza({
           server_uuid: server.uuid,
-          ...job.data.deployConfig
+          //...job.data.deployConfig
         });
 
         this.logger.logQueueOperation(job.id.toString(), 'Waiting for deployment to be ready');
         // Wait for deployment to be ready
-        let deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment.id);
+        await wait(300000);
+        this.logger.logQueueOperation(job.id.toString(), 'Starting to check if deployment is ready');
+        let deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment);
         attempts = 0;
 
         while (deploymentStatus.status === 'building' && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 5000));
-          deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment.id);
+          deploymentStatus = await this.coolifyService.checkDeploymentStatus(deployment);
           attempts++;
 
           const buildingStatus = {
@@ -239,4 +248,8 @@ export class QueueService {
   async getJobStatus(jobId: string): Promise<DeploymentJob | null> {
     return this.deploymentService.getDeployment(jobId);
   }
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

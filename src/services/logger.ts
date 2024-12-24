@@ -76,7 +76,7 @@ export class LoggerService {
       this.logger.info(`Droplet ${operation} successful`, {
         jobId,
         service: 'DigitalOceanService',
-        dropletId
+        dropletId,
       });
     }
   }
